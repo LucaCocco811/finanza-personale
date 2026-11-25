@@ -13,6 +13,11 @@
     return data && data.session ? data.session.user : null;
   }
 
+  // Scritture in corso: una lettura iniziata prima che una scrittura finisca è vecchia e va ripetuta,
+  // altrimenti l'app crederebbe che un documento appena salvato non esista (è successo nel primo trasloco).
+  let inflight = 0, wseq = 0;
+  async function write(fn) { inflight++; wseq++; try { return await fn(); } finally { inflight--; wseq++; } }
+
   const snapOf = rows => ({
     docs: rows.map(r => ({ id: r.id, data: () => r.data })),
     metadata: { fromCache: false, hasPendingWrites: false },
@@ -27,26 +32,33 @@
       },
       doc(id) {
         return {
-          async set(data) {
+          set(data) { return write(async () => {
             const u = await currentUser(); if (!u) throw new Error('non connesso');
             const { error } = await sb.from('docs').upsert({ user_id: u.id, id, data }, { onConflict: 'user_id,id' });
             if (error) throw error;
-          },
-          async delete() {
+          }); },
+          delete() { return write(async () => {
             const { error } = await sb.from('docs').delete().eq('id', id);
             if (error) throw error;
-          },
+          }); },
         };
       },
       onSnapshot(cb, onErr) {
         let timer = null, stopped = false;
         // a ogni modifica rileggo tutto (pochi documenti per utente), raggruppando le modifiche ravvicinate
-        const reload = () => { clearTimeout(timer); timer = setTimeout(async () => {
+        const reload = (wait = 400) => { clearTimeout(timer); timer = setTimeout(async () => {
           if (stopped) return;
-          try { cb(await this.get()); } catch (e) { onErr && onErr(e); }
-        }, 400); };
+          if (inflight) return reload(300);
+          const seq = wseq;
+          try {
+            const snap = await this.get();
+            if (stopped) return;
+            if (inflight || wseq !== seq) return reload(300); // nel frattempo l'app ha salvato: rileggo
+            cb(snap);
+          } catch (e) { onErr && onErr(e); }
+        }, wait); };
         const ch = sb.channel('docs-' + Math.random().toString(36).slice(2))
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, reload)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, () => reload())
           .subscribe(status => { if (status === 'CHANNEL_ERROR' && onErr) onErr(new Error('realtime')); });
         // quando si torna sull'app dopo un po' rileggo comunque
         const vis = () => { if (document.visibilityState === 'visible') reload(); };

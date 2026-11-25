@@ -1,6 +1,6 @@
 // Funzionamento senza rete: tengo una copia dei file dell'app.
 // Pagina e script: prima la rete (così gli aggiornamenti arrivano subito), poi la copia se offline.
-const CACHE = 'fp-v2';
+const CACHE = 'fp-v3';
 const SHELL = ['./', 'index.html', 'config.js', 'supabase-shim.js', 'auth.js', 'vendor/supabase-2.119.0.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
