@@ -1,0 +1,9 @@
+// Pubblicazione su Cloudflare (Workers con file statici): il sito è la cartella web/
+{
+  "name": "finanza-personale",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./web",
+    "not_found_handling": "single-page-application"
+  }
+}
