@@ -2132,7 +2132,8 @@ function cleanBackup(obj) {
   if (!st.budgets || typeof st.budgets !== 'object') st.budgets = {};
   if (!st.maps || typeof st.maps !== 'object') st.maps = {};
   st.started = true;
-  return { settings: st, months, n, created: obj.creato };
+  const prices = obj.prices && typeof obj.prices === 'object' && obj.prices.items && typeof obj.prices.items === 'object' ? JSON.parse(JSON.stringify(obj.prices)) : null;
+  return { settings: st, months, n, created: obj.creato, prices };
 }
 async function handleRestoreFile(file) {
   if (!file) return;
@@ -2172,6 +2173,8 @@ function applyRestore(mode, btn) {
     allTx().forEach(t => { if (!S.settings.cats.some(c => c.id === t.c)) t.c = 'da-classificare'; });
   }
   S.settings.started = true;
+  // prezzi degli investimenti: sostituiti col ripristino completo, aggiunti se non ce n'erano
+  if (b.prices && (mode === 'replace' || !S.prices)) { S.prices = b.prices; Store.savePrices(); }
   Store.saveSettings();
   [...touched].sort().forEach(m => Store.saveMonth(m));
   S.restore = null; closeSheet();
